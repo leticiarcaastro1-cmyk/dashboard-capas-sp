@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Controle de Capas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0c10;--surface:#111318;--s2:#181c23;--border:#1e2330;
+  --acc:#00e5a0;--acc2:#4f6ef7;--acc3:#f7c34f;--acc4:#f74f6e;--acc5:#a04ff7;
+  --text:#e8eaf0;--muted:#6b7490;--r:14px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:24px}
+.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(78,110,247,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(78,110,247,.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.w{position:relative;z-index:1;max-width:1440px;margin:0 auto}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.logo h1{font-size:21px;font-weight:800;letter-spacing:-.5px}
+.logo h1 span{color:var(--acc)}
+.logo p{color:var(--muted);font-family:'DM Mono',monospace;font-size:10px;margin-top:3px}
+.hbadges{display:flex;gap:8px;align-items:center}
+.hbadge{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 13px;font-family:'DM Mono',monospace;font-size:11px}
+.hbadge.g{border-color:rgba(0,229,160,.35);color:var(--acc)}
+.hbadge.y{border-color:rgba(247,195,79,.35);color:var(--acc3)}
+.hbadge.r{border-color:rgba(247,79,110,.35);color:var(--acc4)}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin-bottom:18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;width:fit-content}
+.tab{padding:7px 18px;border-radius:7px;font-size:12px;font-family:'DM Mono',monospace;cursor:pointer;color:var(--muted);border:none;background:none;transition:all .2s}
+.tab.active{background:var(--acc2);color:#fff;font-weight:500}
+.tab:hover:not(.active){color:var(--text);background:var(--s2)}
+.view{display:none}.view.active{display:block}
+
+/* KPI STRIP */
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 16px;position:relative;overflow:hidden;transition:transform .2s}
+.kpi:hover{transform:translateY(-2px)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.g::before{background:var(--acc)}.kpi.b::before{background:var(--acc2)}
+.kpi.y::before{background:var(--acc3)}.kpi.r::before{background:var(--acc4)}.kpi.p::before{background:var(--acc5)}
+.kl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace}
+.kv{font-size:34px;font-weight:800;line-height:1;margin:7px 0 3px;letter-spacing:-2px}
+.ks{font-size:10px;color:var(--muted)}
+.kpi.g .kv{color:var(--acc)}.kpi.b .kv{color:var(--acc2)}.kpi.y .kv{color:var(--acc3)}.kpi.r .kv{color:var(--acc4)}.kpi.p .kv{color:var(--acc5)}
+.dtag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:3px;font-family:'DM Mono',monospace;margin-top:4px}
+.dtag.up{background:rgba(0,229,160,.12);color:var(--acc)}.dtag.dn{background:rgba(247,79,110,.12);color:var(--acc4)}.dtag.eq{background:rgba(107,116,144,.12);color:var(--muted)}
+
+/* GRID */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.full{grid-column:1/-1}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.ct{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.ct .dot{width:6px;height:6px;border-radius:50%;background:var(--acc);flex-shrink:0}
+
+/* PILLS */
+.pills{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.pill{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;transition:all .2s}
+.pill:hover{border-color:var(--acc);background:rgba(0,229,160,.04)}
+.pname{font-size:11px;display:flex;align-items:center;gap:7px}
+.sd{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.pval{font-family:'DM Mono',monospace;font-size:17px;font-weight:500}
+.pdelta{font-family:'DM Mono',monospace;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:3px}
+.dup{background:rgba(0,229,160,.15);color:var(--acc)}.ddn{background:rgba(247,79,110,.15);color:var(--acc4)}.deq{background:rgba(107,116,144,.15);color:var(--muted)}
+
+/* SEGMENTED FILTER BAR */
+.seg-bar{display:flex;gap:4px;margin-bottom:14px}
+.seg{padding:5px 12px;border-radius:6px;font-size:11px;font-family:'DM Mono',monospace;cursor:pointer;color:var(--muted);border:1px solid var(--border);background:var(--s2);transition:all .2s}
+.seg.on{border-color:var(--acc2);color:var(--acc2);background:rgba(79,110,247,.1)}
+.seg:hover:not(.on){color:var(--text)}
+
+/* CHART SIZES */
+.ch{position:relative;height:230px}
+.ch-sm{position:relative;height:185px}
+.ch-md{position:relative;height:260px}
+.ch-lg{position:relative;height:300px}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{text-align:left;padding:5px 8px;color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);font-weight:400}
+.tbl td{padding:7px 8px;border-bottom:1px solid rgba(30,35,48,.5);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--s2)}
+.bs{display:inline-block;padding:2px 7px;border-radius:3px;font-family:'DM Mono',monospace;font-size:9px;font-weight:500}
+.ok{background:rgba(0,229,160,.12);color:var(--acc)}.warn{background:rgba(247,195,79,.12);color:var(--acc3)}.crit{background:rgba(247,79,110,.12);color:var(--acc4)}.info{background:rgba(79,110,247,.12);color:var(--acc2)}
+
+/* STACK */
+.stk{display:flex;gap:2px;height:9px}
+.stkseg{height:9px;border-radius:2px;min-width:3px}
+
+/* LEGEND INLINE */
+.leg{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* TWO COL SPLIT */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.split-divider{width:1px;background:var(--border)}
+
+/* INSIGHTS */
+.ins-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:6px}
+.ins{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;gap:10px}
+.ins-ico{font-size:16px;flex-shrink:0;margin-top:1px}
+.ins-t{font-size:11px;font-weight:700;margin-bottom:3px}
+.ins-b{font-size:10px;color:var(--muted);line-height:1.5}
+.ins.warn{border-color:rgba(247,79,110,.3);background:rgba(247,79,110,.03)}
+.ins.info{border-color:rgba(79,110,247,.3);background:rgba(79,110,247,.03)}
+.ins.ok{border-color:rgba(0,229,160,.3);background:rgba(0,229,160,.03)}
+.ins.yellow{border-color:rgba(247,195,79,.3);background:rgba(247,195,79,.03)}
+
+.slabel{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:10px;margin-top:2px}
+
+/* EXPORT BUTTON */
+.export-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.btn-export{display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#00e5a0,#00b87a);color:#0a0c10;border:none;border-radius:8px;padding:9px 20px;font-family:'DM Mono',monospace;font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;box-shadow:0 0 20px rgba(0,229,160,.2)}
+.btn-export:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(0,229,160,.35)}
+.btn-export:active{transform:translateY(0)}
+.btn-export svg{width:14px;height:14px;flex-shrink:0}
+.export-hint{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.kpi{animation:fadeUp .35s ease both}
+.kpi:nth-child(1){animation-delay:.04s}.kpi:nth-child(2){animation-delay:.08s}.kpi:nth-child(3){animation-delay:.12s}.kpi:nth-child(4){animation-delay:.16s}.kpi:nth-child(5){animation-delay:.2s}
+.card,.ins{animation:fadeUp .3s ease both;animation-delay:.25s}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="w">
+
+<header>
+  <div class="logo">
+    <h1>Controle de <span>Capas</span> · NDI SP</h1>
+    <p>Responsáveis: DA41225 · AP420249 · BR34609 · EL5830 · ES355825 &nbsp;|&nbsp; Centro Clínico · Credenciamento · Renegociação</p>
+  </div>
+  <div class="hbadges">
+    <div class="hbadge y">📅 Base: 22/05/2025</div>
+    <div class="hbadge g">✓ 8 aprovadas hoje</div>
+    <div class="hbadge r">⚠ VP: 107d avg</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="showView('geral',this)">Visão Geral</button>
+  <button class="tab" onclick="showView('perfil',this)">Novo × Ativo</button>
+  <button class="tab" onclick="showView('esp',this)">Especialidade</button>
+  <button class="tab" onclick="showView('resp',this)">Por Responsável</button>
+  <button class="tab" onclick="showView('sla',this)">SLA & Gargalos</button>
+  <button class="tab" onclick="showView('maio',this)">Abertas em Maio</button>
+</div>
+
+<!-- ══════════ GERAL ══════════ -->
+<div class="view active" id="v-geral">
+  <div class="kpis">
+    <div class="kpi b"><div class="kl">Capas ativas</div><div class="kv">149</div><div class="ks">5 responsáveis filtrados</div><div class="dtag dn">▼2 vs ontem (151)</div></div>
+    <div class="kpi y"><div class="kl">Abertas em maio</div><div class="kv">90</div><div class="ks">não existiam em 30/04</div><div class="dtag up">+6 hoje</div></div>
+    <div class="kpi g"><div class="kl">Fechadas hoje</div><div class="kv">8</div><div class="ks">saíram da base ativa</div><div class="dtag up">▲ aprovadas/encerradas</div></div>
+    <div class="kpi r"><div class="kl">SLA médio</div><div class="kv">28d</div><div class="ks">todas as capas ativas</div><div class="dtag dn">Cadastro: 56d ⚠</div></div>
+    <div class="kpi p"><div class="kl">Vice-Presidência</div><div class="kv">2</div><div class="ks">capas críticas</div><div class="dtag dn">avg 107 dias ⛔</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Status atual (22/05) vs ontem (21/05)</div>
+      <div class="pills">
+        <div class="pill"><span class="pname"><span class="sd" style="background:#6b7490"></span>Pré-Cadastro</span><span><span class="pval" style="color:#6b7490">54</span><span class="pdelta deq">= 55</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#00d4ff"></span>Cadastro</span><span><span class="pval" style="color:#00d4ff">41</span><span class="pdelta ddn">▼4</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#f7c34f"></span>Custo</span><span><span class="pval" style="color:#f7c34f">22</span><span class="pdelta dup">▲1</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#4f6ef7"></span>Paralelismo</span><span><span class="pval" style="color:#4f6ef7">18</span><span class="pdelta dup">▲3</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#a04ff7"></span>DISC</span><span><span class="pval" style="color:#a04ff7">9</span><span class="pdelta deq">= 9</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#ff9c42"></span>Vice-Pres.</span><span><span class="pval" style="color:#ff9c42">2</span><span class="pdelta deq">= 2</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#00e5a0"></span>Comitê</span><span><span class="pval" style="color:#00e5a0">2</span><span class="pdelta ddn">▼1</span></span></div>
+        <div class="pill"><span class="pname"><span class="sd" style="background:#54d4ff"></span>Comissão Cred.</span><span><span class="pval" style="color:#54d4ff">1</span><span class="pdelta deq">= 1</span></span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Distribuição de status</div>
+      <div class="ch"><canvas id="c-donut"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Por tipo de protocolo</div>
+      <div class="ch-sm"><canvas id="c-tipo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Por filial</div>
+      <div class="ch-sm"><canvas id="c-filial"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PERFIL ══════════ -->
+<div class="view" id="v-perfil">
+  <div class="kpis">
+    <div class="kpi b"><div class="kl">Novo Prestador</div><div class="kv">70</div><div class="ks">47% das capas ativas</div></div>
+    <div class="kpi g"><div class="kl">Prestador Ativo</div><div class="kv">76</div><div class="ks">51% das capas ativas</div></div>
+    <div class="kpi y"><div class="kl">Novos em Cadastro</div><div class="kv">21</div><div class="ks">maior status p/ novos</div><div class="dtag dn">56d avg SLA</div></div>
+    <div class="kpi r"><div class="kl">Ativos em Custo</div><div class="kv">14</div><div class="ks">renegociações em análise</div><div class="dtag dn">DA41225: 9 delas</div></div>
+    <div class="kpi p"><div class="kl">Novos em DISC</div><div class="kv">9</div><div class="ks">todos os DISCs = novos</div><div class="dtag dn">avg 15d sem mover</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Status — Novo Prestador (70 capas)</div>
+      <div class="ch-md"><canvas id="c-perfil-novo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Status — Prestador Ativo (76 capas)</div>
+      <div class="ch-md"><canvas id="c-perfil-ativo"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card full" style="margin-bottom:14px">
+    <div class="ct"><span class="dot"></span>Novo Prestador × Prestador Ativo por responsável</div>
+    <table class="tbl">
+      <thead><tr><th>Responsável</th><th>Total</th><th>Novo Prestador</th><th>Prestador Ativo</th><th>% Novo</th><th>Avg SLA</th><th>Perfil predominante</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:'DM Mono',monospace;color:var(--acc)">EL5830</td><td style="font-family:'DM Mono',monospace">43</td><td style="color:#4f6ef7;font-family:'DM Mono',monospace">22</td><td style="color:#00e5a0;font-family:'DM Mono',monospace">20</td><td style="font-family:'DM Mono',monospace">51%</td><td style="font-family:'DM Mono',monospace;color:var(--acc4)">44.9d</td><td><span class="bs info">Equilibrado</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;color:var(--acc)">AP420249</td><td style="font-family:'DM Mono',monospace">36</td><td style="color:#4f6ef7;font-family:'DM Mono',monospace">28</td><td style="color:#00e5a0;font-family:'DM Mono',monospace">7</td><td style="font-family:'DM Mono',monospace">78%</td><td style="font-family:'DM Mono',monospace;color:var(--acc)">12.7d</td><td><span class="bs info">Novo Prestador</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;color:var(--acc)">BR34609</td><td style="font-family:'DM Mono',monospace">30</td><td style="color:#4f6ef7;font-family:'DM Mono',monospace">13</td><td style="color:#00e5a0;font-family:'DM Mono',monospace">16</td><td style="font-family:'DM Mono',monospace">43%</td><td style="font-family:'DM Mono',monospace;color:var(--acc3)">24.5d</td><td><span class="bs ok">Prestador Ativo</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;color:var(--acc)">ES355825</td><td style="font-family:'DM Mono',monospace">26</td><td style="color:#4f6ef7;font-family:'DM Mono',monospace">6</td><td style="color:#00e5a0;font-family:'DM Mono',monospace">20</td><td style="font-family:'DM Mono',monospace">23%</td><td style="font-family:'DM Mono',monospace;color:var(--acc3)">28.7d</td><td><span class="bs ok">Prestador Ativo</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;color:var(--acc)">DA41225</td><td style="font-family:'DM Mono',monospace">14</td><td style="color:#4f6ef7;font-family:'DM Mono',monospace">1</td><td style="color:#00e5a0;font-family:'DM Mono',monospace">13</td><td style="font-family:'DM Mono',monospace">7%</td><td style="font-family:'DM Mono',monospace;color:var(--acc4)">31.0d</td><td><span class="bs warn">Prestador Ativo ⚠</span></td></tr>
+      </tbody>
+    </table>
+    <div class="leg" style="margin-top:14px">
+      <div class="leg-item"><div class="leg-dot" style="background:#4f6ef7"></div>Novo Prestador</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#00e5a0"></div>Prestador Ativo</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ESPECIALIDADE ══════════ -->
+<div class="view" id="v-esp">
+  <div class="kpis">
+    <div class="kpi y"><div class="kl">Ginecologia (top 1)</div><div class="kv">27</div><div class="ks">18% de todas as capas</div><div class="dtag dn">10 em Cadastro ⚠</div></div>
+    <div class="kpi b"><div class="kl">Clínico Geral</div><div class="kv">14</div><div class="ks">2ª maior especialidade</div></div>
+    <div class="kpi r"><div class="kl">Cardiologia</div><div class="kv">9</div><div class="ks">2 capas em VP ⛔</div><div class="dtag dn">vice-presidência</div></div>
+    <div class="kpi g"><div class="kl">Especialidades</div><div class="kv">17</div><div class="ks">especialidades distintas</div></div>
+    <div class="kpi p"><div class="kl">Abertas maio</div><div class="kv">15</div><div class="ks">Gineco. abertas em maio</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Top especialidades — status por especialidade</div>
+      <div class="ch-lg"><canvas id="c-esp-status"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Novo Prestador × Ativo por especialidade</div>
+      <div class="ch-lg"><canvas id="c-esp-perfil"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card full" style="margin-bottom:14px">
+    <div class="ct"><span class="dot"></span>Detalhe por especialidade</div>
+    <table class="tbl">
+      <thead><tr><th>Especialidade</th><th>Total</th><th>Novo Prest.</th><th>Prest. Ativo</th><th>Pré-Cad</th><th>Cadastro</th><th>Custo</th><th>Paralel.</th><th>DISC</th><th>Comitê/VP</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:'DM Mono',monospace">GINECOLOGIA E OBSTETRICIA</td><td>27</td><td style="color:#4f6ef7">18</td><td style="color:#00e5a0">9</td><td>2</td><td style="color:var(--acc4);font-weight:600">10</td><td>7</td><td>3</td><td style="color:var(--acc5)">4</td><td>1</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">CLINICO GERAL</td><td>14</td><td style="color:#4f6ef7">14</td><td style="color:#00e5a0">0</td><td>5</td><td>2</td><td>1</td><td>4</td><td style="color:var(--acc5)">2</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">CARDIOLOGIA</td><td>9</td><td style="color:#4f6ef7">8</td><td style="color:#00e5a0">1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>0</td><td style="color:var(--acc4);font-weight:600">3 (2 VP)</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">PROC. CIRURGIA GERAL</td><td>5</td><td style="color:#4f6ef7">5</td><td style="color:#00e5a0">0</td><td>3</td><td>1</td><td>0</td><td>0</td><td>1</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">MASTOLOGIA</td><td>4</td><td style="color:#4f6ef7">4</td><td style="color:#00e5a0">0</td><td>0</td><td>3</td><td>0</td><td>1</td><td>0</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">DERMATOLOGIA CLIN. E CIR.</td><td>4</td><td style="color:#4f6ef7">4</td><td style="color:#00e5a0">0</td><td>0</td><td>2</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">PEDIATRIA</td><td>4</td><td style="color:#4f6ef7">4</td><td style="color:#00e5a0">0</td><td>2</td><td>1</td><td>1</td><td>0</td><td>0</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">PSIQUIATRIA</td><td>4</td><td style="color:#4f6ef7">3</td><td style="color:#00e5a0">1</td><td>2</td><td>0</td><td>1</td><td>0</td><td>1</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">ENDOCRINOLOGIA/METABOLOGIA</td><td>3</td><td style="color:#4f6ef7">1</td><td style="color:#00e5a0">2</td><td>1</td><td>1</td><td>0</td><td>1</td><td>0</td><td>0</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">ORTOPEDIA E TRAUMATOLOGIA</td><td>2</td><td style="color:#4f6ef7">2</td><td style="color:#00e5a0">0</td><td>1</td><td>0</td><td>0</td><td>1</td><td>0</td><td>0</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════ RESPONSÁVEL ══════════ -->
+<div class="view" id="v-resp">
+  <div class="kpis">
+    <div class="kpi b"><div class="kl">EL5830</div><div class="kv">43</div><div class="ks">22 em Cadastro · SLA 45d</div><div class="dtag dn">maior gargalo</div></div>
+    <div class="kpi g"><div class="kl">AP420249</div><div class="kv">36</div><div class="ks">SLA médio 12.7d ✓</div><div class="dtag up">melhor desempenho</div></div>
+    <div class="kpi y"><div class="kl">BR34609</div><div class="kv">30</div><div class="ks">SLA médio 24.5d</div></div>
+    <div class="kpi p"><div class="kl">ES355825</div><div class="kv">26</div><div class="ks">20 Prestadores Ativos</div></div>
+    <div class="kpi r"><div class="kl">DA41225</div><div class="kv">14</div><div class="ks">9 em Custo · SLA 31d ⚠</div><div class="dtag dn">concentração em custo</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Carteira por responsável · mix de status</div>
+      <div class="ch-md"><canvas id="c-resp-stacked"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Novo Prestador × Prestador Ativo por responsável</div>
+      <div class="ch-md"><canvas id="c-resp-perfil"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card full" style="margin-bottom:14px">
+    <div class="ct"><span class="dot"></span>Tabela detalhada por responsável</div>
+    <table class="tbl">
+      <thead><tr><th>Responsável</th><th>Total</th><th>SLA avg</th><th>Mix perfil</th><th>Pré-Cad</th><th>Cadastro</th><th>Custo</th><th>Paralel.</th><th>DISC</th><th>VP/Comitê</th><th>Distribuição</th></tr></thead>
+      <tbody id="resp-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════ SLA ══════════ -->
+<div class="view" id="v-sla">
+  <div class="kpis">
+    <div class="kpi r"><div class="kl">Cadastro avg</div><div class="kv">56d</div><div class="ks">41 capas · status mais lento</div></div>
+    <div class="kpi p"><div class="kl">Vice-Pres avg</div><div class="kv">107d</div><div class="ks">2 capas · ultrapassou limite</div></div>
+    <div class="kpi y"><div class="kl">Custo avg</div><div class="kv">30d</div><div class="ks">22 capas em negociação</div></div>
+    <div class="kpi g"><div class="kl">Comitê avg</div><div class="kv">13d</div><div class="ks">20 capas · bom ritmo</div></div>
+    <div class="kpi b"><div class="kl">Pré-Cadastro avg</div><div class="kv">11d</div><div class="ks">54 capas · dentro do prazo</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Distribuição de SLA (faixas de dias)</div>
+      <div class="ch"><canvas id="c-sla-faixas"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>SLA médio por status</div>
+      <div class="ch"><canvas id="c-sla-status"></canvas></div>
+    </div>
+  </div>
+  <div class="card full" style="margin-bottom:14px">
+    <div class="ct"><span class="dot"></span>Tabela de alertas</div>
+    <table class="tbl">
+      <thead><tr><th>Status</th><th>Capas</th><th>SLA Médio</th><th>Risco</th><th>Ação recomendada</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:'DM Mono',monospace">VICE-PRESIDENCIA</td><td>2</td><td style="color:var(--acc4);font-family:'DM Mono',monospace">107d</td><td><span class="bs crit">⛔ Crítico</span></td><td style="color:var(--muted)">Escalação imediata com VP. Capas de Cardiologia há mais de 100 dias.</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">CADASTRO</td><td>41</td><td style="color:var(--acc4);font-family:'DM Mono',monospace">56d</td><td><span class="bs crit">⛔ Crítico</span></td><td style="color:var(--muted)">Status mais lento. EL5830 tem 22 capas aqui — verificar documentação pendente.</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">CUSTO</td><td>22</td><td style="color:var(--acc3);font-family:'DM Mono',monospace">30d</td><td><span class="bs warn">⚠ Atenção</span></td><td style="color:var(--muted)">DA41225 com 9 capas em Custo — bloco de negociações pendentes.</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">DISC</td><td>9</td><td style="color:var(--acc3);font-family:'DM Mono',monospace">15d</td><td><span class="bs warn">⚠ Atenção</span></td><td style="color:var(--muted)">Todos os DISCs são Novo Prestador. Acionar captadores para desbloqueio.</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">PARALELISMO</td><td>18</td><td style="color:var(--acc2);font-family:'DM Mono',monospace">18d</td><td><span class="bs info">ℹ Monitor</span></td><td style="color:var(--muted)">Normal para o fluxo — monitorar capas acima de 30 dias.</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">COMITE</td><td>2</td><td style="color:var(--acc);font-family:'DM Mono',monospace">13d</td><td><span class="bs ok">✓ OK</span></td><td style="color:var(--muted)">Bom ritmo. Monitorar saída pós-comitê.</td></tr>
+        <tr><td style="font-family:'DM Mono',monospace">PRE-CADASTRO</td><td>54</td><td style="color:var(--acc);font-family:'DM Mono',monospace">11d</td><td><span class="bs ok">✓ OK</span></td><td style="color:var(--muted)">Dentro do prazo esperado para início de esteira.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════ MAIO ══════════ -->
+<div class="view" id="v-maio">
+  <div class="kpis">
+    <div class="kpi y"><div class="kl">Abertas em maio</div><div class="kv">90</div><div class="ks">não existiam em 30/04</div></div>
+    <div class="kpi b"><div class="kl">Novo Prestador</div><div class="kv">46</div><div class="ks">51% das abertas</div></div>
+    <div class="kpi g"><div class="kl">Prestador Ativo</div><div class="kv">41</div><div class="ks">46% das abertas</div></div>
+    <div class="kpi r"><div class="kl">Ginecologia</div><div class="kv">15</div><div class="ks">esp. mais aberta em maio</div></div>
+    <div class="kpi p"><div class="kl">Clínico Geral</div><div class="kv">12</div><div class="ks">2ª mais aberta em maio</div></div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Status das capas abertas em maio</div>
+      <div class="ch-md"><canvas id="c-maio-status"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Especialidade das capas abertas em maio</div>
+      <div class="ch-md"><canvas id="c-maio-esp"></canvas></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Perfil das abertas em maio</div>
+      <div class="ch-sm"><canvas id="c-maio-perfil"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="dot"></span>Abertas em maio por responsável</div>
+      <div class="ch-sm"><canvas id="c-maio-resp"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- INSIGHTS (sempre visível) -->
+<!-- EXPORT BAR -->
+<div class="export-bar">
+  <div class="slabel" style="margin:0">💡 Alertas & Insights do dia</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="export-hint">⬇ Exporta todas as tabelas em abas separadas</span>
+    <button class="btn-export" onclick="exportarExcel()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      Exportar Excel
+    </button>
+  </div>
+</div>
+<div class="ins-grid" style="margin-bottom:24px">
+  <div class="ins warn"><div class="ins-ico">⛔</div><div><div class="ins-t" style="color:var(--acc4)">VP: 107 dias — escalação urgente</div><div class="ins-b">2 capas de Cardiologia aguardando Vice-Presidência há mais de 100 dias. Sem aprovação VP a capa não avança. Requer ação imediata.</div></div></div>
+  <div class="ins warn"><div class="ins-ico">🔴</div><div><div class="ins-t" style="color:var(--acc4)">EL5830: 22 capas em Cadastro (56d)</div><div class="ins-b">O maior responsável tem quase metade da carteira travada em Cadastro — status com o pior SLA. Verificar documentação pendente em lote.</div></div></div>
+  <div class="ins yellow"><div class="ins-ico">⚠️</div><div><div class="ins-t" style="color:var(--acc3)">DA41225: 9 de 14 em Custo</div><div class="ins-b">64% da carteira de DA41225 está em Custo. Todos são Prestadores Ativos — provavelmente renegociações de valores que travam na esteira.</div></div></div>
+  <div class="ins info"><div class="ins-ico">🔵</div><div><div class="ins-t" style="color:var(--acc2)">Ginecologia: 27 capas, 10 em Cadastro</div><div class="ins-b">A especialidade mais demandante concentra 37% das capas em Cadastro (10/27). Com 15 abertas em maio, o volume vai aumentar.</div></div></div>
+  <div class="ins ok"><div class="ins-ico">✅</div><div><div class="ins-t" style="color:var(--acc)">AP420249: melhor desempenho</div><div class="ins-b">SLA médio de 12.7 dias — o melhor entre os 5 responsáveis. 78% da carteira é Novo Prestador e o fluxo está fluindo bem.</div></div></div>
+  <div class="ins info"><div class="ins-ico">📅</div><div><div class="ins-t" style="color:var(--acc2)">90 capas abertas em maio</div><div class="ins-b">46 Novos Prestadores + 41 Prestadores Ativos. Ginecologia (15) e Clínico Geral (12) lideram. Volume mensal acima da média.</div></div></div>
+</div>
+
+</div><!-- /w -->
+<script>
+// ── PALETTE ──────────────────────────────────────────────────────
+const C = {
+  pre:'#6b7490', cad:'#00d4ff', custo:'#f7c34f', par:'#4f6ef7',
+  disc:'#a04ff7', vp:'#ff9c42', com:'#00e5a0', cc:'#54d4ff',
+  novo:'#4f6ef7', ativo:'#00e5a0'
+};
+const ttOpts = {backgroundColor:'#181c23',borderColor:'#1e2330',borderWidth:1,titleColor:'#e8eaf0',bodyColor:'#8b92a8',padding:10};
+const axOpts = (stacked=false) => ({
+  x:{stacked,ticks:{color:'#6b7490',font:{family:'DM Mono',size:10}},grid:{color:'#1e2330',display:!stacked}},
+  y:{stacked,ticks:{color:'#6b7490',font:{family:'DM Mono',size:10}},grid:{color:'#1e2330'}}
+});
+const axOptsH = () => ({
+  x:{ticks:{color:'#6b7490',font:{family:'DM Mono',size:10}},grid:{color:'#1e2330'}},
+  y:{ticks:{color:'#e8eaf0',font:{family:'DM Mono',size:10}},grid:{display:false}}
+});
+const legOpts = {labels:{color:'#8b92a8',font:{family:'DM Mono',size:9},boxWidth:9,boxHeight:9,padding:6}};
+
+// ── GERAL ────────────────────────────────────────────────────────
+new Chart(document.getElementById('c-donut').getContext('2d'),{type:'doughnut',data:{
+  labels:['Pré-Cadastro','Cadastro','Custo','Paralelismo','DISC','Vice-Pres.','Comitê','Comissão Cred.'],
+  datasets:[{data:[54,41,22,18,9,2,2,1],backgroundColor:[C.pre,C.cad,C.custo,C.par,C.disc,C.vp,C.com,C.cc],borderColor:'#111318',borderWidth:3,hoverOffset:6}]
+},options:{cutout:'68%',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#8b92a8',font:{family:'DM Mono',size:10},padding:10,boxWidth:10,boxHeight:10}},tooltip:ttOpts}}});
+
+new Chart(document.getElementById('c-tipo').getContext('2d'),{type:'bar',data:{
+  labels:['Centro Clínico','Credenciamento','Renegociação'],
+  datasets:[
+    {label:'Pré-Cadastro',data:[40,7,7],backgroundColor:C.pre},
+    {label:'Cadastro',    data:[30,7,4],backgroundColor:C.cad},
+    {label:'Custo',       data:[12,3,7],backgroundColor:C.custo},
+    {label:'Paralelismo', data:[12,4,2],backgroundColor:C.par},
+    {label:'DISC/VP/Out', data:[9,4,3], backgroundColor:C.disc},
+  ]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legOpts,tooltip:ttOpts},scales:axOpts(true)}});
+
+new Chart(document.getElementById('c-filial').getContext('2d'),{type:'bar',data:{
+  labels:['São Paulo','Jundiaí','Sorocaba','S.B.Campo','Campinas','Americana','Mogi'],
+  datasets:[{data:[104,17,13,8,5,4,1],backgroundColor:C.par,borderRadius:4}]
+},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:axOptsH()}});
+
+// ── PERFIL ───────────────────────────────────────────────────────
+new Chart(document.getElementById('c-perfil-novo').getContext('2d'),{type:'bar',data:{
+  labels:['Cadastro','Pré-Cadastro','Paralelismo','DISC','Custo','Comitê','VP'],
+  datasets:[{data:[21,18,12,9,8,1,1],backgroundColor:[C.cad,C.pre,C.par,C.disc,C.custo,C.com,C.vp],borderRadius:4}]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:{...axOpts(),x:{...axOpts().x,grid:{display:false}}}}});
+
+new Chart(document.getElementById('c-perfil-ativo').getContext('2d'),{type:'bar',data:{
+  labels:['Pré-Cadastro','Cadastro','Custo','Paralelismo','VP','Comissão','Comitê'],
+  datasets:[{data:[33,20,14,6,1,1,1],backgroundColor:[C.pre,C.cad,C.custo,C.par,C.vp,C.cc,C.com],borderRadius:4}]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:{...axOpts(),x:{...axOpts().x,grid:{display:false}}}}});
+
+// ── ESPECIALIDADE ────────────────────────────────────────────────
+const esps = ['Ginecologia E Obst.','Clínico Geral','Cardiologia','Proc. Cir. Geral','Mastologia','Dermatologia','Pediatria','Psiquiatria','Endocrinologia','Ortopedia'];
+new Chart(document.getElementById('c-esp-status').getContext('2d'),{type:'bar',data:{
+  labels:esps,
+  datasets:[
+    {label:'Pré-Cadastro',data:[2,5,2,3,0,0,2,2,1,1],backgroundColor:C.pre},
+    {label:'Cadastro',    data:[10,2,3,1,3,2,1,0,1,0],backgroundColor:C.cad},
+    {label:'Custo',       data:[7,1,0,0,0,1,1,1,0,0],backgroundColor:C.custo},
+    {label:'Paralelismo', data:[3,4,1,0,1,1,0,0,1,1],backgroundColor:C.par},
+    {label:'DISC',        data:[4,2,0,1,0,0,0,1,0,0],backgroundColor:C.disc},
+    {label:'VP/Comitê',   data:[1,0,3,0,0,0,0,0,0,0],backgroundColor:C.vp},
+  ]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legOpts,tooltip:ttOpts},scales:axOpts(true)}});
+
+new Chart(document.getElementById('c-esp-perfil').getContext('2d'),{type:'bar',data:{
+  labels:esps,
+  datasets:[
+    {label:'Novo Prestador', data:[18,14,8,5,4,4,4,3,1,2],backgroundColor:C.novo},
+    {label:'Prestador Ativo',data:[9,0,1,0,0,0,0,1,2,0], backgroundColor:C.ativo},
+  ]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legOpts,tooltip:ttOpts},scales:axOpts(true)}});
+
+// ── RESPONSÁVEL ──────────────────────────────────────────────────
+const respNames = ['EL5830','AP420249','BR34609','ES355825','DA41225'];
+const rData = {
+  pre:  [11,12,12,16,3],
+  cad:  [22,3,8,8,0],
+  custo:[4,4,4,1,9],
+  par:  [4,10,2,1,1],
+  disc: [1,6,2,0,0],
+  vp:   [1,0,1,0,0],
+  com:  [0,1,1,0,1],
+  novo: [22,28,13,6,1],
+  ativo:[20,7,16,20,13],
+};
+new Chart(document.getElementById('c-resp-stacked').getContext('2d'),{type:'bar',data:{
+  labels:respNames,
+  datasets:[
+    {label:'Pré-Cadastro',data:rData.pre,  backgroundColor:C.pre},
+    {label:'Cadastro',    data:rData.cad,  backgroundColor:C.cad},
+    {label:'Custo',       data:rData.custo,backgroundColor:C.custo},
+    {label:'Paralelismo', data:rData.par,  backgroundColor:C.par},
+    {label:'DISC',        data:rData.disc, backgroundColor:C.disc},
+    {label:'VP/Comitê',   data:rData.vp.map((v,i)=>v+rData.com[i]),backgroundColor:C.vp},
+  ]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legOpts,tooltip:ttOpts},scales:axOpts(true)}});
+
+new Chart(document.getElementById('c-resp-perfil').getContext('2d'),{type:'bar',data:{
+  labels:respNames,
+  datasets:[
+    {label:'Novo Prestador', data:rData.novo, backgroundColor:C.novo},
+    {label:'Prestador Ativo',data:rData.ativo,backgroundColor:C.ativo},
+  ]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legOpts,tooltip:ttOpts},scales:axOpts(true)}});
+
+// Resp table
+const slaMeds = [44.9,12.7,24.5,28.7,31.0];
+const totais  = [43,36,30,26,14];
+const tbody = document.getElementById('resp-tbody');
+respNames.forEach((n,i) => {
+  const slaColor = slaMeds[i]>40?'var(--acc4)':slaMeds[i]>25?'var(--acc3)':'var(--acc)';
+  const segs = [
+    {v:rData.pre[i],c:C.pre},{v:rData.cad[i],c:C.cad},{v:rData.custo[i],c:C.custo},
+    {v:rData.par[i],c:C.par},{v:rData.disc[i],c:C.disc},{v:rData.vp[i]+rData.com[i],c:C.vp}
+  ];
+  const stackHtml = segs.map(s=>{const w=Math.max(3,s.v/totais[i]*110);return`<div class="stkseg" style="width:${w}px;background:${s.c}"></div>`;}).join('');
+  tbody.innerHTML+=`<tr>
+    <td style="font-family:'DM Mono',monospace;color:var(--acc)">${n}</td>
+    <td style="font-family:'DM Mono',monospace;font-weight:600">${totais[i]}</td>
+    <td style="font-family:'DM Mono',monospace;color:${slaColor}">${slaMeds[i]}d</td>
+    <td><div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">${rData.novo[i]}N / ${rData.ativo[i]}A</div></td>
+    <td style="font-family:'DM Mono',monospace;color:${C.pre}">${rData.pre[i]}</td>
+    <td style="font-family:'DM Mono',monospace;color:${C.cad}">${rData.cad[i]}</td>
+    <td style="font-family:'DM Mono',monospace;color:${C.custo}">${rData.custo[i]}</td>
+    <td style="font-family:'DM Mono',monospace;color:${C.par}">${rData.par[i]}</td>
+    <td style="font-family:'DM Mono',monospace;color:${C.disc}">${rData.disc[i]}</td>
+    <td style="font-family:'DM Mono',monospace;color:${C.vp}">${rData.vp[i]+rData.com[i]}</td>
+    <td><div class="stk">${stackHtml}</div></td>
+  </tr>`;
+});
+
+// ── SLA ──────────────────────────────────────────────────────────
+new Chart(document.getElementById('c-sla-faixas').getContext('2d'),{type:'bar',data:{
+  labels:['1–7 dias','8–15 dias','16–30 dias','31–50 dias','50+ dias'],
+  datasets:[{data:[40,34,28,21,26],backgroundColor:[C.com,C.par,C.custo,'#f79c4f',C.disc],borderRadius:5}]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:{...axOpts(),x:{...axOpts().x,grid:{display:false}}}}});
+
+new Chart(document.getElementById('c-sla-status').getContext('2d'),{type:'bar',data:{
+  labels:['Vice-Pres.','Cadastro','Custo','Com.Cred.','Paralelismo','DISC','Comitê','Pré-Cadastro'],
+  datasets:[{data:[107,56,30,40,18,15,13,11],backgroundColor:[C.vp,'#f74f6e',C.custo,C.cc,C.par,C.disc,C.com,C.pre],borderRadius:4}]
+},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{...ttOpts,callbacks:{label:c=>`${c.raw} dias`}}},scales:axOptsH()}});
+
+// ── MAIO ─────────────────────────────────────────────────────────
+new Chart(document.getElementById('c-maio-status').getContext('2d'),{type:'bar',data:{
+  labels:['Pré-Cadastro','Paralelismo','Custo','Cadastro','DISC','Comitê'],
+  datasets:[{data:[45,14,12,9,8,2],backgroundColor:[C.pre,C.par,C.custo,C.cad,C.disc,C.com],borderRadius:5}]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:{...axOpts(),x:{...axOpts().x,grid:{display:false}}}}});
+
+new Chart(document.getElementById('c-maio-esp').getContext('2d'),{type:'bar',data:{
+  labels:['Ginecologia E Obst.','Clínico Geral','Cardiologia','Psiquiatria','Proc.Cir.Geral','Geriatria','Pediatria','Outros'],
+  datasets:[{data:[15,12,4,4,4,2,2,7],backgroundColor:C.acc2,borderRadius:4}]
+},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:axOptsH()}});
+
+new Chart(document.getElementById('c-maio-perfil').getContext('2d'),{type:'doughnut',data:{
+  labels:['Novo Prestador (46)','Prestador Ativo (41)','CNPJ (3)'],
+  datasets:[{data:[46,41,3],backgroundColor:[C.novo,C.ativo,'#6b7490'],borderColor:'#111318',borderWidth:3}]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#8b92a8',font:{family:'DM Mono',size:11},padding:12,boxWidth:10,boxHeight:10}},tooltip:ttOpts}}});
+
+// Maio por responsável
+const maioResp = {EL5830:28,AP420249:20,BR34609:14,ES355825:20,DA41225:8};
+new Chart(document.getElementById('c-maio-resp').getContext('2d'),{type:'bar',data:{
+  labels:Object.keys(maioResp),
+  datasets:[{data:Object.values(maioResp),backgroundColor:[C.acc2,C.com,C.custo,C.par,C.acc4],borderRadius:5}]
+},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:ttOpts},scales:{...axOpts(),x:{...axOpts().x,grid:{display:false}}}}});
+
+// ── EXPORTAR EXCEL ────────────────────────────────────────────────
+function exportarExcel() {
+  const wb = XLSX.utils.book_new();
+  const BASE = '22/05/2025';
+
+  // ── ABA 1: KPIs & Status ─────────────────────────────────────
+  const wsKpi = XLSX.utils.aoa_to_sheet([
+    [`Dashboard Controle de Capas — Base: ${BASE}`],
+    ['Responsáveis: DA41225 · AP420249 · BR34609 · EL5830 · ES355825'],
+    ['Tipos: Centro Clínico · Credenciamento · Renegociação'],
+    [],
+    ['KPIs GERAIS', 'Valor', 'Nota'],
+    ['Total capas ativas (filtradas)', 149, 'vs 151 ontem'],
+    ['Abertas em maio', 90, 'não existiam em 30/04'],
+    ['Fechadas/aprovadas hoje', 8, 'saíram da base 21→22/05'],
+    ['SLA médio geral', 28, 'dias'],
+    ['Capas em Vice-Presidência', 2, 'avg 107 dias — crítico'],
+    [],
+    ['STATUS ATUAL (22/05)', 'Qtd', 'Ontem (21/05)', 'Delta'],
+    ['Pré-Cadastro',   54, 55, -1],
+    ['Cadastro',       41, 45, -4],
+    ['Custo',          22, 21, +1],
+    ['Paralelismo',    18, 15, +3],
+    ['DISC',            9,  9,  0],
+    ['Comitê',          2,  3, -1],
+    ['Vice-Presidência',2,  2,  0],
+    ['Comissão Cred.',  1,  1,  0],
+    ['TOTAL',         149,151, -2],
+  ]);
+  wsKpi['!cols'] = [{wch:30},{wch:12},{wch:16},{wch:8}];
+  wsKpi['!merges'] = [{s:{r:0,c:0},e:{r:0,c:3}}];
+  XLSX.utils.book_append_sheet(wb, wsKpi, 'KPIs e Status');
+
+  // ── ABA 2: Por Responsável ───────────────────────────────────
+  const wsResp = XLSX.utils.aoa_to_sheet([
+    ['CARTEIRA POR RESPONSÁVEL', '', '', '', '', '', '', '', '', '', ''],
+    ['Base: ' + BASE],
+    [],
+    ['Responsável','Total','SLA Médio (d)','Novo Prest.','Prest. Ativo','Pré-Cadastro','Cadastro','Custo','Paralelismo','DISC','VP/Comitê'],
+    ['EL5830',   43, 44.9, 22, 20, 11, 22, 4, 4, 1, 1],
+    ['AP420249', 36, 12.7, 28,  7, 12,  3, 4,10, 6, 1],
+    ['BR34609',  30, 24.5, 13, 16, 12,  8, 4, 2, 2, 2],
+    ['ES355825', 26, 28.7,  6, 20, 16,  8, 1, 1, 0, 0],
+    ['DA41225',  14, 31.0,  1, 13,  3,  0, 9, 1, 0, 1],
+    ['TOTAL',   149,   '',70, 76, 54, 41,22,18, 9, 5],
+  ]);
+  wsResp['!cols'] = [{wch:14},{wch:8},{wch:14},{wch:13},{wch:13},{wch:13},{wch:10},{wch:8},{wch:10},{wch:6},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsResp, 'Por Responsável');
+
+  // ── ABA 3: Novo Prestador × Prestador Ativo ──────────────────
+  const wsPerfil = XLSX.utils.aoa_to_sheet([
+    ['NOVO PRESTADOR × PRESTADOR ATIVO', '', '', '', '', '', ''],
+    ['Base: ' + BASE],
+    [],
+    ['Perfil','Total','Pré-Cadastro','Cadastro','Custo','Paralelismo','DISC','VP/Comitê'],
+    ['Novo Prestador',  70, 18, 21, 8, 12, 9, 2],
+    ['Prestador Ativo', 76, 33, 20,14,  6, 0, 3],
+    ['CNPJ / Outros',   3,  3,  0, 0,  0, 0, 0],
+    ['TOTAL',          149, 54, 41,22, 18, 9, 5],
+    [],
+    ['NOVO PRESTADOR × ATIVO POR RESPONSÁVEL'],
+    ['Responsável','Total','Novo Prest.','% Novo','Prest. Ativo','% Ativo','SLA Médio'],
+    ['EL5830',   43, 22, '51%', 20, '47%', 44.9],
+    ['AP420249', 36, 28, '78%',  7, '19%', 12.7],
+    ['BR34609',  30, 13, '43%', 16, '53%', 24.5],
+    ['ES355825', 26,  6, '23%', 20, '77%', 28.7],
+    ['DA41225',  14,  1,  '7%', 13, '93%', 31.0],
+  ]);
+  wsPerfil['!cols'] = [{wch:16},{wch:8},{wch:13},{wch:8},{wch:13},{wch:8},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsPerfil, 'Novo vs Ativo');
+
+  // ── ABA 4: Especialidade ──────────────────────────────────────
+  const wsEsp = XLSX.utils.aoa_to_sheet([
+    ['CAPAS POR ESPECIALIDADE', '', '', '', '', '', '', '', ''],
+    ['Base: ' + BASE + ' | Filtro: DA41225, AP420249, BR34609, EL5830, ES355825'],
+    [],
+    ['Especialidade','Total','Novo Prest.','Prest. Ativo','Pré-Cadastro','Cadastro','Custo','Paralelismo','DISC','VP/Comitê'],
+    ['Ginecologia E Obstetrícia',    27, 18,  9,  2, 10, 7, 3, 4, 1],
+    ['Clínico Geral',                14, 14,  0,  5,  2, 1, 4, 2, 0],
+    ['Cardiologia',                   9,  8,  1,  2,  3, 0, 1, 0, 3],
+    ['Procedimentos Cirurgia Geral',  5,  5,  0,  3,  1, 0, 0, 1, 0],
+    ['Mastologia',                    4,  4,  0,  0,  3, 0, 1, 0, 0],
+    ['Dermatologia Clínica e Cir.',   4,  4,  0,  0,  2, 1, 1, 0, 0],
+    ['Pediatria',                     4,  4,  0,  2,  1, 1, 0, 0, 0],
+    ['Psiquiatria',                   4,  3,  1,  2,  0, 1, 0, 1, 0],
+    ['Endocrinologia/Metabologia',    3,  1,  2,  1,  1, 0, 1, 0, 0],
+    ['Ortopedia E Traumatologia',     2,  2,  0,  1,  0, 0, 1, 0, 0],
+    ['Geriatria/Gerontologia',        2,  2,  0,  0,  0, 0, 0, 0, 0],
+    ['Outras',                        6,  3,  0,  2,  1, 0, 0, 2, 0],
+    ['TOTAL',                       84, 70, 12, 20, 24,11,12, 8, 3],
+  ]);
+  wsEsp['!cols'] = [{wch:32},{wch:7},{wch:12},{wch:13},{wch:13},{wch:10},{wch:7},{wch:10},{wch:6},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsEsp, 'Especialidade');
+
+  // ── ABA 5: Abertas em Maio ───────────────────────────────────
+  const wsMaio = XLSX.utils.aoa_to_sheet([
+    ['CAPAS ABERTAS EM MAIO (não existiam em 30/04)', '', '', ''],
+    ['Base: ' + BASE + ' | Total: 90 capas'],
+    [],
+    ['STATUS DAS ABERTAS EM MAIO'],
+    ['Status','Qtd','% do total'],
+    ['Pré-Cadastro', 45, '50%'],
+    ['Paralelismo',  14, '16%'],
+    ['Custo',        12, '13%'],
+    ['Cadastro',      9, '10%'],
+    ['DISC',          8,  '9%'],
+    ['Comitê',        2,  '2%'],
+    ['TOTAL',        90,'100%'],
+    [],
+    ['PERFIL DAS ABERTAS EM MAIO'],
+    ['Perfil','Qtd','%'],
+    ['Novo Prestador',  46, '51%'],
+    ['Prestador Ativo', 41, '46%'],
+    ['CNPJ',             3,  '3%'],
+    [],
+    ['ESPECIALIDADE DAS ABERTAS EM MAIO'],
+    ['Especialidade','Qtd'],
+    ['Ginecologia E Obstetrícia',   15],
+    ['Clínico Geral',               12],
+    ['Cardiologia',                  4],
+    ['Psiquiatria',                  4],
+    ['Proc. Cirurgia Geral',         4],
+    ['Geriatria/Gerontologia',       2],
+    ['Pediatria',                    2],
+    ['Outras',                       7],
+    [],
+    ['POR RESPONSÁVEL'],
+    ['Responsável','Abertas em Maio'],
+    ['EL5830',   28],
+    ['AP420249', 20],
+    ['ES355825', 20],
+    ['BR34609',  14],
+    ['DA41225',   8],
+  ]);
+  wsMaio['!cols'] = [{wch:32},{wch:10},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsMaio, 'Abertas em Maio');
+
+  // ── ABA 6: SLA ───────────────────────────────────────────────
+  const wsSla = XLSX.utils.aoa_to_sheet([
+    ['ANÁLISE DE SLA', '', '', ''],
+    ['Base: ' + BASE],
+    [],
+    ['SLA MÉDIO POR STATUS'],
+    ['Status','Qtd Capas','SLA Médio (d)','Risco'],
+    ['Vice-Presidência',      2, 107, 'CRÍTICO'],
+    ['Cadastro',             41,  56, 'CRÍTICO'],
+    ['Comissão Cred.',        1,  40, 'ATENÇÃO'],
+    ['Custo',                22,  30, 'ATENÇÃO'],
+    ['Paralelismo',          18,  18, 'MONITORAR'],
+    ['DISC',                  9,  15, 'ATENÇÃO'],
+    ['Comitê',                2,  13, 'OK'],
+    ['Pré-Cadastro',         54,  11, 'OK'],
+    [],
+    ['DISTRIBUIÇÃO POR FAIXA DE DIAS'],
+    ['Faixa','Qtd Capas'],
+    ['1–7 dias',   40],
+    ['8–15 dias',  34],
+    ['16–30 dias', 28],
+    ['31–50 dias', 21],
+    ['50+ dias',   26],
+    [],
+    ['SLA MÉDIO POR RESPONSÁVEL'],
+    ['Responsável','SLA Médio (d)','Total Capas','Avaliação'],
+    ['AP420249', 12.7, 36, 'Excelente'],
+    ['BR34609',  24.5, 30, 'Bom'],
+    ['ES355825', 28.7, 26, 'Regular'],
+    ['DA41225',  31.0, 14, 'Atenção'],
+    ['EL5830',   44.9, 43, 'Crítico'],
+  ]);
+  wsSla['!cols'] = [{wch:22},{wch:12},{wch:14},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsSla, 'SLA');
+
+  // ── DOWNLOAD ─────────────────────────────────────────────────
+  XLSX.writeFile(wb, `Capas_NDI_SP_${BASE.replace(/\//g,'-')}.xlsx`);
+}
+
+// ── TABS ──────────────────────────────────────────────────────────
+function showView(id, el) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('v-'+id).classList.add('active');
+  el.classList.add('active');
+}
+</script>
+</body>
+</html>
